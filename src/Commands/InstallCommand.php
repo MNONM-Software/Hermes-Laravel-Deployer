@@ -3,7 +3,10 @@
 namespace Mnonm\HermesDeployer\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 use Mnonm\HermesDeployer\Http\HealthController;
+use Throwable;
 
 class InstallCommand extends Command
 {
@@ -48,7 +51,67 @@ class InstallCommand extends Command
         $this->line('  3. CLAUDE.md: pegá el fragmento de '.$stubs.'/claude-md-fragment.md.stub');
         $this->line('  4. php artisan migrate');
 
-        return 0;
+        return $this->verify();
+    }
+
+    /**
+     * Lo que el comando no deja hecho lo tiene que dejar verificado: media
+     * adopción en silencio es justo lo que el diseño no quiere. La ruta de salud
+     * es la que más pesa —el healthcheck de Hermes compara la versión desplegada
+     * contra la pretendida, y sin ruta esa protección no existe—.
+     */
+    private function verify(): int
+    {
+        $missing = [];
+
+        if (blank(config('app.version'))) {
+            $missing[] = "config/app.php: falta la clave 'version'";
+        }
+
+        if (! $this->healthRouteAnswers()) {
+            $missing[] = 'routes: GET /health no resuelve';
+        }
+
+        if (! $this->claudeMdHasTheFragment()) {
+            $missing[] = 'CLAUDE.md: falta el fragmento de convención';
+        }
+
+        $this->newLine();
+
+        if ($missing === []) {
+            $this->info('Verificado: versión, ruta de salud y fragmento de CLAUDE.md en su lugar.');
+
+            return 0;
+        }
+
+        $this->error('El proyecto todavía NO está listo para Hermes. Falta:');
+
+        foreach ($missing as $item) {
+            $this->line('  - '.$item);
+        }
+
+        return 1;
+    }
+
+    private function healthRouteAnswers(): bool
+    {
+        try {
+            Route::getRoutes()->match(Request::create('/health', 'GET'));
+        } catch (Throwable) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function claudeMdHasTheFragment(): bool
+    {
+        $claudeMd = base_path('CLAUDE.md');
+
+        return is_file($claudeMd) && str_contains(
+            (string) file_get_contents($claudeMd),
+            '## Deploy, changelog y versionado'
+        );
     }
 
     private function copy(string $from, string $to): void
