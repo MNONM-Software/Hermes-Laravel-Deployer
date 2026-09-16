@@ -63,8 +63,26 @@ class ReleaseCommandTest extends TestCase
         // No tocó el archivo: no hay clave `version` para reemplazar.
         $this->assertSame($configContents, file_get_contents(config_path('app.php')));
 
-        // El changelog sí queda redactado: es mejor perder el aviso a mano que
-        // perder la redacción.
-        $this->assertStringContainsString('## v1.5.0', file_get_contents(base_path('CHANGELOG.md')));
+        // Y tampoco el changelog: si lo escribiera, la corrida siguiente —la que
+        // hace la persona después de agregar la clave— dejaría dos entradas
+        // idénticas de la misma versión.
+        $this->assertStringNotContainsString('## v1.5.0', file_get_contents(base_path('CHANGELOG.md')));
+    }
+
+    public function test_running_it_again_after_fixing_the_config_leaves_one_entry(): void
+    {
+        file_put_contents(base_path('CHANGELOG.md'), "# Changelog\n");
+        file_put_contents(config_path('app.php'), "<?php\n\nreturn [\n    'name' => 'Ceo',\n];\n");
+
+        $this->artisan('deploy:release 1.5.0')->assertExitCode(1);
+
+        file_put_contents(config_path('app.php'), "<?php\n\nreturn [\n    'version' => '1.4.0',\n];\n");
+
+        $this->artisan('deploy:release 1.5.0')->assertExitCode(0);
+
+        $this->assertSame(
+            1,
+            substr_count((string) file_get_contents(base_path('CHANGELOG.md')), '## v1.5.0')
+        );
     }
 }

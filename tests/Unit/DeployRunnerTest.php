@@ -5,6 +5,7 @@ namespace Mnonm\HermesDeployer\Tests\Unit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Mnonm\HermesDeployer\DeployRunner;
 use Mnonm\HermesDeployer\DeployStep;
+use Mnonm\HermesDeployer\Models\DeployOperation;
 use Mnonm\HermesDeployer\Tests\Support\RecordingStepExecutor;
 use Mnonm\HermesDeployer\Tests\TestCase;
 
@@ -42,6 +43,28 @@ class DeployRunnerTest extends TestCase
             'operation' => '2026_09_03_090000_backfill_saldo',
             'app_version' => '1.5.0',
         ]);
+    }
+
+    public function test_it_does_not_say_ok_when_the_ledger_row_cannot_be_written(): void
+    {
+        // La fila ya está: el unique de `operation` hace fallar el insert. Antes
+        // el log ya había dicho `ok` y después salía un stack trace crudo.
+        (new DeployOperation)->fill([
+            'operation' => '2026_09_03_090000_backfill_saldo',
+            'ran_at' => now(),
+        ])->save();
+
+        $lines = [];
+
+        $exit = (new DeployRunner(new RecordingStepExecutor))->run([
+            DeployStep::operation('/o/2026_09_03_090000_backfill_saldo.php'),
+        ], dryRun: false, report: function (string $line) use (&$lines) {
+            $lines[] = $line;
+        });
+
+        $this->assertSame(1, $exit);
+        $this->assertStringContainsString('FALLÓ', implode("\n", $lines));
+        $this->assertStringNotContainsString('ok', implode("\n", $lines));
     }
 
     public function test_a_failing_operation_stops_everything_after_it(): void
@@ -84,6 +107,20 @@ class DeployRunnerTest extends TestCase
         $this->assertDatabaseCount('deploy_operations', 0);
     }
 
+    public function test_a_dry_run_reports_an_operation_that_fails_on_its_own(): void
+    {
+        $executor = new RecordingStepExecutor(failsOn: ['2026_09_03_090000_backfill_saldo']);
+
+        $exit = (new DeployRunner($executor))->run([
+            DeployStep::operation('/o/2026_09_03_090000_backfill_saldo.php'),
+            DeployStep::operation('/o/2026_09_05_090000_otra_cosa.php'),
+        ], dryRun: true, report: fn (string $line) => null);
+
+        $this->assertSame(1, $exit);
+        $this->assertSame(['dry:2026_09_03_090000_backfill_saldo'], $executor->calls);
+        $this->assertDatabaseCount('deploy_operations', 0);
+    }
+
     public function test_a_dry_run_stops_at_the_first_operation_behind_a_pending_migration(): void
     {
         $executor = new RecordingStepExecutor;
@@ -97,7 +134,9 @@ class DeployRunnerTest extends TestCase
             $lines[] = $line;
         });
 
-        $this->assertSame(0, $exit);
+        // 2 y no 0: el seco no evaluó todo, y quien lo meta en un job de CI
+        // tiene que enterarse.
+        $this->assertSame(2, $exit);
         $this->assertSame(['dry:2026_09_01_090000_evaluable'], $executor->calls);
         $this->assertStringContainsString('no evaluable en seco', implode("\n", $lines));
         $this->assertStringContainsString('2026_09_03_090000_backfill_saldo', implode("\n", $lines));

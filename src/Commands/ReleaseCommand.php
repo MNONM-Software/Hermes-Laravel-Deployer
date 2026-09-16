@@ -34,14 +34,6 @@ class ReleaseCommand extends Command
             return 1;
         }
 
-        $changelog = base_path('CHANGELOG.md');
-        $existing = is_file($changelog) ? (string) file_get_contents($changelog) : "# Changelog\n";
-
-        file_put_contents($changelog, $writer->prepend(
-            $existing,
-            $writer->entry($version, date('Y-m-d'), $read['commits'])
-        ));
-
         $config = config_path('app.php');
         $contents = (string) file_get_contents($config);
 
@@ -53,9 +45,10 @@ class ReleaseCommand extends Command
             $replacements
         );
 
-        // Sin esta guarda el comando puede decir que subió el número sin haber
-        // tocado nada: un proyecto que todavía no tiene la clave `version` en
-        // config/app.php no matchea, y el preg_replace devuelve el archivo igual.
+        // La validación va ANTES de escribir el changelog, y no después: sin la
+        // clave `version` el comando salía con la entrada ya redactada, y la
+        // segunda corrida —la que hace la persona después de agregar la clave—
+        // metía una segunda entrada idéntica que el gate acepta con un grep.
         if ($replacements === 0) {
             $this->error(
                 'No encontré la clave `version` en config/app.php. '.
@@ -64,6 +57,14 @@ class ReleaseCommand extends Command
 
             return 1;
         }
+
+        $changelog = base_path('CHANGELOG.md');
+        $existing = is_file($changelog) ? (string) file_get_contents($changelog) : "# Changelog\n";
+
+        file_put_contents($changelog, $writer->prepend(
+            $existing,
+            $writer->entry($version, date('Y-m-d'), $read['commits'])
+        ));
 
         file_put_contents($config, (string) $updated);
 

@@ -17,7 +17,7 @@ final class DeployRunner
     /**
      * @param  list<DeployStep>  $steps
      * @param  callable(string): void  $report
-     * @return int código de salida: 0 bien, 1 fallo
+     * @return int código de salida: 0 bien, 1 fallo, 2 seco que no pudo terminar
      */
     public function run(array $steps, bool $dryRun, callable $report): int
     {
@@ -53,14 +53,21 @@ final class DeployRunner
             if ($dryRun && $migrationsArePending) {
                 $report("{$name}: no evaluable en seco, depende de migraciones pendientes. Se corta acá.");
 
-                return 0;
+                // Distinto de 0: un seco que se cortó sin evaluar nada no puede
+                // ser indistinguible de uno completo, o un job de CI lo toma por
+                // bueno.
+                return 2;
             }
 
-            if (! $this->attempt(fn () => $this->executor->operation($step->paths[0], $dryRun), $name, $report)) {
-                return 1;
-            }
+            $work = function () use ($step, $dryRun, $name): void {
+                $this->executor->operation($step->paths[0], $dryRun);
 
-            if (! $dryRun) {
+                if ($dryRun) {
+                    return;
+                }
+
+                // La fila se escribe dentro del attempt: si no se puede escribir,
+                // la línea del log no tiene que haber dicho `ok` antes.
                 // No usamos el ::create() mágico: sin Larastan, PHPStan no
                 // reconoce ese método estático de Eloquent (staticMethod.notFound).
                 (new DeployOperation)->fill([
@@ -68,6 +75,10 @@ final class DeployRunner
                     'ran_at' => now(),
                     'app_version' => config('app.version'),
                 ])->save();
+            };
+
+            if (! $this->attempt($work, $name, $report)) {
+                return 1;
             }
         }
 
