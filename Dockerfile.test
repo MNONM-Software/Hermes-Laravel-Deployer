@@ -1,0 +1,14 @@
+# Imagen para correr la suite de este paquete en una máquina cuyo PHP no tiene
+# pdo_sqlite (la base en memoria de Testbench lo necesita) o no tiene git
+# (CommitReaderTest construye repos de verdad).
+#
+#   docker build -f Dockerfile.test -t hermes-deployer-test .
+#   docker run --rm -u "$(id -u):$(id -g)" -v "$PWD":/app -w /app hermes-deployer-test vendor/bin/phpunit
+#
+# PHP 8.3 y no 8.4: el paquete apunta a ^8.3 y los proyectos que lo instalan
+# corren 8.3. Testear sobre 8.4 dejaría pasar sintaxis que en producción no compila.
+FROM php:8.3-fpm-bookworm
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*

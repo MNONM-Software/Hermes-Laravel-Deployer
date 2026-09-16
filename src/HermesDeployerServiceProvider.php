@@ -3,7 +3,9 @@
 namespace Mnonm\HermesDeployer;
 
 use Illuminate\Support\ServiceProvider;
+use Mnonm\HermesDeployer\Changelog\CommitReader;
 use Mnonm\HermesDeployer\Commands\BaselineCommand;
+use Mnonm\HermesDeployer\Commands\ReleaseCommand;
 use Mnonm\HermesDeployer\Commands\RunCommand;
 use Mnonm\HermesDeployer\Commands\StatusCommand;
 
@@ -18,6 +20,11 @@ class HermesDeployerServiceProvider extends ServiceProvider
         ));
 
         $this->app->bind(StepExecutor::class, ArtisanStepExecutor::class);
+
+        $this->app->bind(
+            CommitReader::class,
+            fn () => new CommitReader(base_path()),
+        );
     }
 
     public function boot(): void
@@ -27,6 +34,7 @@ class HermesDeployerServiceProvider extends ServiceProvider
                 BaselineCommand::class,
                 RunCommand::class,
                 StatusCommand::class,
+                ReleaseCommand::class,
             ]);
         }
     }
