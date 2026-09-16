@@ -13,14 +13,14 @@ final class VersionSuggester
      */
     public function suggest(?string $currentTag, array $commits): string
     {
-        if ($currentTag === null) {
+        // Un tag que no es semver se trata como "no hay tag": partirlo con
+        // explode() sugiere un número hacia atrás —`v1.4` propone 1.5.0, que es
+        // más chico que 1.4.7— y quien acepta con Enter baja la versión.
+        if ($currentTag === null || preg_match('/^v?(\d+)\.(\d+)\.(\d+)$/', $currentTag, $parts) !== 1) {
             return '1.0.0';
         }
 
-        [$major, $minor, $patch] = array_map(
-            'intval',
-            explode('.', ltrim($currentTag, 'v'))
-        );
+        [$major, $minor, $patch] = [(int) $parts[1], (int) $parts[2], (int) $parts[3]];
 
         foreach ($commits as $commit) {
             if (preg_match('/^feat(\(.+\))?!?:/', $commit) === 1) {

@@ -30,6 +30,22 @@ class VersionSuggesterTest extends TestCase
         ]));
     }
 
+    public function test_a_tag_that_is_not_semver_is_treated_as_no_tag(): void
+    {
+        // Antes tiraba warnings de índice indefinido y proponía 0.1.0.
+        $this->assertSame('1.0.0', (new VersionSuggester)->suggest('sprint-3', [
+            'feat(stock): lo primero',
+        ]));
+    }
+
+    public function test_a_tag_with_two_numbers_does_not_suggest_a_lower_version(): void
+    {
+        // `v1.4` proponía 1.5.0, que puede ser más chico que lo que ya está.
+        $this->assertSame('1.0.0', (new VersionSuggester)->suggest('v1.4', [
+            'fix(remitos): fecha invertida',
+        ]));
+    }
+
     public function test_it_never_raises_the_major_number_on_its_own(): void
     {
         // "esto es un cambio grande" es un juicio, no sale de los commits.

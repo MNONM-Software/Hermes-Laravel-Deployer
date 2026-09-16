@@ -87,6 +87,44 @@ class CommitReaderTest extends TestCase
         $this->assertSame(['fix(remitos): lo nuevo'], $result['commits']);
     }
 
+    public function test_it_finds_the_last_tag_even_when_it_is_not_reachable_from_head(): void
+    {
+        // El caso real: deploy:release se corre desde develop y el tag lo puso
+        // el CI sobre main. `git describe` no lo ve, y sin él el comando redacta
+        // toda la historia del repo y propone 1.0.0.
+        $this->commit('feat(stock): lo viejo');
+        $this->git('checkout -q -b main-release');
+        $this->commit('chore: lo que se taggeo');
+        $this->git('tag v1.4.0');
+        $this->git('checkout -q main');
+        $this->commit('fix(remitos): lo nuevo');
+
+        $result = (new CommitReader($this->repo))->sinceLastTag();
+
+        $this->assertSame('v1.4.0', $result['tag']);
+        $this->assertSame(['fix(remitos): lo nuevo'], $result['commits']);
+    }
+
+    public function test_it_takes_the_highest_version_and_not_the_last_one_created(): void
+    {
+        $this->commit('feat(stock): lo viejo');
+        $this->git('tag v1.10.0');
+        $this->git('tag v1.9.0');
+
+        $this->assertSame('v1.10.0', (new CommitReader($this->repo))->sinceLastTag()['tag']);
+    }
+
+    public function test_a_tag_that_is_not_a_version_does_not_count_as_one(): void
+    {
+        $this->commit('feat(stock): lo primero');
+        $this->git('tag sprint-3');
+
+        $result = (new CommitReader($this->repo))->sinceLastTag();
+
+        $this->assertNull($result['tag']);
+        $this->assertSame(['feat(stock): lo primero'], $result['commits']);
+    }
+
     public function test_it_returns_nothing_outside_a_git_repository(): void
     {
         $notARepo = sys_get_temp_dir().'/hermes-not-a-repo-'.uniqid();

@@ -37,13 +37,23 @@ final class CommitReader
 
     private function lastTag(): ?string
     {
-        try {
-            $tag = trim($this->git(['describe', '--tags', '--abbrev=0']));
-        } catch (RuntimeException) {
+        // `git describe --tags` sólo ve los tags alcanzables desde HEAD, y este
+        // comando se corre al abrir el PR de develop a main mientras el tag lo
+        // pone el CI sobre main: ese commit no es ancestro de develop. Con
+        // describe el tag no aparece, el changelog sale con toda la historia del
+        // repo y la versión propuesta vuelve a 1.0.0, todo en silencio.
+        //
+        // El filtro `v[0-9]*` deja afuera los tags que no son de versión, que si
+        // no terminarían de base para proponer el número siguiente.
+        $tags = trim($this->git(['tag', '--list', 'v[0-9]*', '--sort=-v:refname']));
+
+        if ($tags === '') {
             return null;
         }
 
-        return $tag === '' ? null : $tag;
+        $latest = trim(explode("\n", $tags)[0]);
+
+        return $latest === '' ? null : $latest;
     }
 
     /** @param  list<string>  $args */
