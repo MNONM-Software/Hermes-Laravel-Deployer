@@ -27,6 +27,12 @@ jobs:
             echo "config/app.php sigue en $base. Corré 'php artisan deploy:release'."
             exit 1
           fi
+          # Comparada como versión y no como string: 1.4.0 -> 1.0.0 también es un
+          # cambio, y pasar eso deja el tag v1.0.0 ya puesto y main sin taggear.
+          if [ "$(printf '%s\n%s\n' "$base" "$head" | sort -V | head -n1)" != "$base" ]; then
+            echo "La versión bajó: $base -> $head. El número tiene que subir."
+            exit 1
+          fi
           echo "$base -> $head"
 
       - name: El changelog tiene que tener la entrada de esa version
@@ -48,9 +54,11 @@ jobs:
       - name: Taggear la version
         run: |
           version=$(grep -oP "'version'\s*=>\s*'\K[^']+" config/app.php)
+          # El gate ya garantizó que el número subió, así que encontrar el tag
+          # puesto significa que algo salió mal: rojo, no un aviso.
           if git ls-remote --tags origin "refs/tags/v$version" | grep -q .; then
-            echo "El tag v$version ya existe."
-            exit 0
+            echo "El tag v$version ya existe: el número de config/app.php no es nuevo."
+            exit 1
           fi
           git tag "v$version"
           git push origin "v$version"
