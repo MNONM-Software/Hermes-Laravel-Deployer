@@ -27,8 +27,6 @@ class BaselineCommandTest extends TestCase
         $this->assertDatabaseHas('deploy_operations', [
             'operation' => '2026_09_03_090000_backfill_saldo',
         ]);
-
-        array_map('unlink', glob($dir.'/*.php') ?: []);
     }
 
     public function test_it_does_not_touch_migrations(): void
@@ -36,5 +34,15 @@ class BaselineCommandTest extends TestCase
         $this->artisan('deploy:baseline')->assertExitCode(0);
 
         $this->assertDatabaseCount('deploy_operations', 0);
+    }
+
+    protected function tearDown(): void
+    {
+        // En tearDown y no al final del test: si una aserción falla antes, la
+        // limpieza inline no corre y el .php queda en database_path('operations')
+        // del skeleton de Testbench, que es real y compartido entre corridas.
+        array_map('unlink', glob(database_path('operations').'/*.php') ?: []);
+
+        parent::tearDown();
     }
 }
