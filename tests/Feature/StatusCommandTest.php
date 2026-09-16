@@ -27,7 +27,15 @@ class StatusCommandTest extends TestCase
             ->assertExitCode(0);
 
         $this->assertDatabaseCount('deploy_operations', 0);
+    }
 
-        array_map('unlink', glob($dir.'/*.php') ?: []);
+    protected function tearDown(): void
+    {
+        // En tearDown y no al final del test: si una aserción falla antes, la
+        // limpieza inline no corre y el .php queda en database_path('operations')
+        // del skeleton de Testbench, que es real y compartido entre corridas.
+        array_map('unlink', glob(database_path('operations').'/*.php') ?: []);
+
+        parent::tearDown();
     }
 }
