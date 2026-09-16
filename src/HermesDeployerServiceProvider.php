@@ -3,6 +3,7 @@
 namespace Mnonm\HermesDeployer;
 
 use Illuminate\Support\ServiceProvider;
+use Mnonm\HermesDeployer\Commands\BaselineCommand;
 use Mnonm\HermesDeployer\Commands\RunCommand;
 use Mnonm\HermesDeployer\Commands\StatusCommand;
 
@@ -23,6 +24,7 @@ class HermesDeployerServiceProvider extends ServiceProvider
     {
         if ($this->app->runningInConsole()) {
             $this->commands([
+                BaselineCommand::class,
                 RunCommand::class,
                 StatusCommand::class,
             ]);
