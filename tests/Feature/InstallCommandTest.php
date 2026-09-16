@@ -77,6 +77,41 @@ class InstallCommandTest extends TestCase
             ->assertExitCode(1);
     }
 
+    public function test_it_fails_when_health_only_resolves_via_a_fallback_route(): void
+    {
+        // Sin /health propia, un Route::fallback (SPA, Inertia) matchea igual:
+        // RouteCollection::match() lo devuelve porque Laravel lo ordena al
+        // final. Salir 0 acá sería no tener el chequeo.
+        config()->set('app.version', '1.0.0');
+        file_put_contents(
+            base_path('CLAUDE.md'),
+            (string) file_get_contents(dirname(__DIR__, 2).'/stubs/claude-md-fragment.md.stub')
+        );
+
+        Route::fallback(fn () => response('not found', 404));
+
+        $this->artisan('hermes:install')
+            ->expectsOutputToContain('GET /health no resuelve')
+            ->assertExitCode(1);
+    }
+
+    public function test_it_fails_when_health_resolves_to_a_foreign_handler(): void
+    {
+        // Una /health que no es el HealthController del paquete tampoco sirve:
+        // el deployer espera el JSON con la versión que sólo da ese controller.
+        config()->set('app.version', '1.0.0');
+        file_put_contents(
+            base_path('CLAUDE.md'),
+            (string) file_get_contents(dirname(__DIR__, 2).'/stubs/claude-md-fragment.md.stub')
+        );
+
+        Route::get('/health', fn () => response()->json(['status' => 'ok']));
+
+        $this->artisan('hermes:install')
+            ->expectsOutputToContain('GET /health no resuelve')
+            ->assertExitCode(1);
+    }
+
     public function test_it_publishes_everything_a_project_needs(): void
     {
         $this->wireTheRest();

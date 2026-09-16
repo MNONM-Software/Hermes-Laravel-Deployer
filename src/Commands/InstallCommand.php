@@ -96,12 +96,17 @@ class InstallCommand extends Command
     private function healthRouteAnswers(): bool
     {
         try {
-            Route::getRoutes()->match(Request::create('/health', 'GET'));
+            $route = Route::getRoutes()->match(Request::create('/health', 'GET'));
         } catch (Throwable) {
             return false;
         }
 
-        return true;
+        // match() también devuelve rutas `fallback`: Laravel las ordena al final
+        // y las entrega cuando nada más matcheó. Sin este chequeo, cualquier
+        // proyecto con un Route::fallback (SPA, Inertia) pasa el verify sin que
+        // /health exista de verdad. Y una /health ajena tampoco sirve: el
+        // deployer espera el JSON con la versión que sólo da nuestro controller.
+        return ! $route->isFallback && $route->getControllerClass() === HealthController::class;
     }
 
     private function claudeMdHasTheFragment(): bool
