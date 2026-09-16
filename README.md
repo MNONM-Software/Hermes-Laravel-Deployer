@@ -17,16 +17,18 @@ php artisan migrate
 
 `hermes:install` publica la migración de la tabla, `database/operations/`, el `deploy.php` que lee
 Hermes, el workflow de CI y un test de colisión de nombres, y te dice los cuatro pasos que quedan a
-mano porque tocan archivos que ya existen.
+mano porque tocan archivos que ya existen. Lo que no deja hecho lo deja **verificado**: si falta la
+clave `version` en `config/app.php`, la ruta `GET /health` o el fragmento de `CLAUDE.md`, el comando
+los lista y sale con código distinto de cero.
 
 ## Los comandos
 
 | Comando | Qué hace |
 | --- | --- |
 | `deploy:run` | Corre las migraciones y las operaciones pendientes de esta instalación, en orden. Es lo que corre Hermes |
-| `deploy:run --dry-run` | Corre las operaciones en seco. No escribe nada y no aplica migraciones, así que se detiene en la primera operación que dependa de una pendiente. Herramienta de dev y staging |
+| `deploy:run --dry-run` | Corre las operaciones en seco. No escribe nada y no aplica migraciones, así que se detiene en la primera operación que dependa de una pendiente, y en ese caso sale con código 2. Herramienta de dev y staging |
 | `deploy:status` | Qué corrió y qué falta acá, sin ejecutar nada |
-| `deploy:baseline` | Marca todo como corrido sin ejecutarlo. Una vez por instalación, al adoptar el sistema en un proyecto que ya venía andando |
+| `deploy:baseline` | Marca todo como corrido sin ejecutarlo. Pregunta antes; `--force` para uso no interactivo. Una vez por instalación, al adoptar el sistema en un proyecto que ya venía andando |
 | `deploy:release` | Redacta la entrada del `CHANGELOG.md` y sube el número. No commitea nada |
 
 ## Una operación
