@@ -22,22 +22,34 @@ class BaselineCommandTest extends TestCase
 
     public function test_it_marks_every_operation_as_run_without_running_it(): void
     {
-        $dir = database_path('operations');
+        $this->writeOperation();
 
-        if (! is_dir($dir)) {
-            mkdir($dir, 0777, true);
-        }
-
-        file_put_contents(
-            "{$dir}/2026_09_03_090000_backfill_saldo.php",
-            "<?php return new class extends \\Mnonm\\HermesDeployer\\Operation { public function handle(bool \$dryRun): void { throw new \\RuntimeException('no tendria que correr'); } };"
-        );
-
-        $this->artisan('deploy:baseline')->assertExitCode(0);
+        // --force porque Hermes corre sin TTY.
+        $this->artisan('deploy:baseline --force')->assertExitCode(0);
 
         $this->assertDatabaseHas('deploy_operations', [
             'operation' => '2026_09_03_090000_backfill_saldo',
         ]);
+    }
+
+    public function test_it_asks_before_marking_and_marks_nothing_if_you_say_no(): void
+    {
+        $this->writeOperation();
+
+        $this->artisan('deploy:baseline')
+            ->expectsOutputToContain('2026_09_03_090000_backfill_saldo')
+            ->expectsConfirmation('¿Marcar estas operaciones sin ejecutarlas?', 'no')
+            ->assertExitCode(1);
+
+        $this->assertDatabaseCount('deploy_operations', 0);
+    }
+
+    private function writeOperation(): void
+    {
+        file_put_contents(
+            database_path('operations/2026_09_03_090000_backfill_saldo.php'),
+            "<?php return new class extends \\Mnonm\\HermesDeployer\\Operation { public function handle(bool \$dryRun): void { throw new \\RuntimeException('no tendria que correr'); } };"
+        );
     }
 
     public function test_it_does_not_touch_migrations(): void
