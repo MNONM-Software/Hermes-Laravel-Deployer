@@ -15,10 +15,18 @@ class InstallCommand extends Command
     {
         $stubs = dirname(__DIR__, 2).'/stubs';
 
-        $this->copy(
-            $stubs.'/create_deploy_operations_table.php.stub',
-            database_path('migrations/'.date('Y_m_d_His').'_create_deploy_operations_table.php')
-        );
+        // El nombre lleva un timestamp, así que el guard de copyRaw() —que mira
+        // si el archivo destino existe— nunca protegería a la migración: una
+        // segunda corrida publicaría otra `create_deploy_operations_table` y el
+        // `migrate` siguiente moriría porque la tabla ya está.
+        if (glob(database_path('migrations/*_create_deploy_operations_table.php')) === []) {
+            $this->copy(
+                $stubs.'/create_deploy_operations_table.php.stub',
+                database_path('migrations/'.date('Y_m_d_His').'_create_deploy_operations_table.php')
+            );
+        } else {
+            $this->comment('ya existe, no lo toco: la migración de deploy_operations');
+        }
 
         if (! is_dir(database_path('operations'))) {
             mkdir(database_path('operations'), 0777, true);

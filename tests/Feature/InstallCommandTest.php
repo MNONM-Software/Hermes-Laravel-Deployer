@@ -68,4 +68,15 @@ class InstallCommandTest extends TestCase
 
         $this->assertStringContainsString('mio', file_get_contents(base_path('deploy.php')));
     }
+
+    public function test_running_it_twice_leaves_exactly_one_migration(): void
+    {
+        $this->artisan('hermes:install')->assertExitCode(0);
+        $this->artisan('hermes:install')->assertExitCode(0);
+
+        $this->assertCount(
+            1,
+            glob(database_path('migrations/*_create_deploy_operations_table.php')) ?: []
+        );
+    }
 }

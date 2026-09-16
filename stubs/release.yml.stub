@@ -16,8 +16,12 @@ jobs:
           fetch-depth: 0
 
       - name: La version tiene que haber subido
+        # BASE_REF por env y no interpolado en el script: una expresión de
+        # Actions dentro de `run` es inyección de script, y todo linter la marca.
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          base=$(git show origin/${{ github.base_ref }}:config/app.php | grep -oP "'version'\s*=>\s*'\K[^']+")
+          base=$(git show "origin/$BASE_REF:config/app.php" | grep -oP "'version'\s*=>\s*'\K[^']+")
           head=$(grep -oP "'version'\s*=>\s*'\K[^']+" config/app.php)
           if [ "$base" = "$head" ]; then
             echo "config/app.php sigue en $base. Corré 'php artisan deploy:release'."
