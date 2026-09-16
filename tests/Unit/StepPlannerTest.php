@@ -187,6 +187,15 @@ class StepPlannerTest extends TestCase
         $this->planner()->pending();
     }
 
+    public function test_it_rejects_a_file_whose_digits_run_into_the_description_without_a_separator(): void
+    {
+        $this->operation('2026_09_03_090000extra_foo');
+
+        $this->expectException(InvalidStepNameException::class);
+
+        $this->planner()->pending();
+    }
+
     public function test_it_says_to_migrate_first_when_the_ledger_table_is_missing(): void
     {
         Schema::drop('deploy_operations');

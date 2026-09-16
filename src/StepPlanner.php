@@ -62,11 +62,11 @@ final class StepPlanner
         $timestamps = [];
 
         foreach ($files as $name => $path) {
-            if (! preg_match('/^\d{4}_\d{2}_\d{2}_\d{6}/', $name, $matches)) {
+            if (! preg_match('/^(\d{4}_\d{2}_\d{2}_\d{6})_/', $name, $matches)) {
                 throw InvalidStepNameException::for($path);
             }
 
-            $timestamps[$name] = $matches[0];
+            $timestamps[$name] = $matches[1];
         }
 
         return $timestamps;
