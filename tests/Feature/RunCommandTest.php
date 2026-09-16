@@ -9,6 +9,17 @@ class RunCommandTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // El directorio tiene que existir: ausente ya no es lo mismo que vacío,
+        // y el InstallCommandTest lo borra del skeleton compartido.
+        if (! is_dir(database_path('operations'))) {
+            mkdir(database_path('operations'), 0777, true);
+        }
+    }
+
     public function test_it_reports_when_there_is_nothing_pending(): void
     {
         $this->artisan('deploy:run')

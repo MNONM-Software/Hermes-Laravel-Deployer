@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Schema;
 use Mnonm\HermesDeployer\Exceptions\CollidingStepNameException;
 use Mnonm\HermesDeployer\Exceptions\InvalidStepNameException;
 use Mnonm\HermesDeployer\Exceptions\MissingLedgerTableException;
+use Mnonm\HermesDeployer\Exceptions\MissingOperationsDirectoryException;
 use Mnonm\HermesDeployer\Models\DeployOperation;
 
 /**
@@ -28,7 +29,7 @@ final class StepPlanner
     public function pending(): array
     {
         $migrations = $this->pendingMigrations();
-        $operations = $this->pendingOperations();
+        $operations = $this->pendingOperations($migrations);
 
         // No es el nombre completo lo que puede colisionar: son los timestamps.
         // Dos archivos con igual timestamp y distinta descripción también dejan
@@ -76,31 +77,74 @@ final class StepPlanner
     private function pendingMigrations(): array
     {
         // Las rutas vienen por constructor a propósito: Migrator::paths() devuelve
-        // sólo las rutas extra registradas, nunca database/migrations.
+        // sólo las rutas extra que registró algún provider, nunca
+        // database/migrations. Las dos tienen que estar: quien arma el planner
+        // las une.
         $files = $this->migrator->getMigrationFiles($this->migrationPaths);
         $ran = $this->migrator->getRepository()->getRan();
 
         return array_diff_key($files, array_flip($ran));
     }
 
-    /** @return array<string, string> nombre => ruta */
-    private function pendingOperations(): array
+    /**
+     * @param  array<string, string>  $pendingMigrations
+     * @return array<string, string> nombre => ruta
+     */
+    private function pendingOperations(array $pendingMigrations): array
     {
-        // Sin la tabla no sabemos qué corrió acá, y adivinar sería re-correr
-        // backfills sobre datos de producción.
+        $files = $this->operationFiles();
+
         if (! Schema::hasTable('deploy_operations')) {
+            // Si la migración que crea la tabla está pendiente, el ledger está
+            // vacío por definición y todo es pendiente: no se adivina, se sabe.
+            // Es la primera release de un proyecto que acaba de adoptar la
+            // librería, y morir acá es morir con la app apagada.
+            if ($this->ledgerMigrationIsPending($pendingMigrations)) {
+                return $files;
+            }
+
+            // Sin la tabla y sin nadie que la vaya a crear no sabemos qué corrió
+            // acá, y adivinar sería re-correr backfills sobre datos de producción.
             throw MissingLedgerTableException::make();
-        }
-
-        $files = [];
-
-        foreach (glob($this->operationsPath.'/*_*.php') ?: [] as $path) {
-            $files[basename($path, '.php')] = $path;
         }
 
         $ran = DeployOperation::query()->pluck('operation')->all();
 
         return array_diff_key($files, array_flip($ran));
+    }
+
+    /**
+     * Todos los `.php` del directorio, sin filtrar por forma del nombre: el que
+     * no sigue la convención lo tiene que rechazar InvalidStepNameException, no
+     * un glob que lo esconde.
+     *
+     * @return array<string, string> nombre => ruta
+     */
+    private function operationFiles(): array
+    {
+        if (! is_dir($this->operationsPath)) {
+            throw MissingOperationsDirectoryException::for($this->operationsPath);
+        }
+
+        $files = [];
+
+        foreach (glob($this->operationsPath.'/*.php') ?: [] as $path) {
+            $files[basename($path, '.php')] = $path;
+        }
+
+        return $files;
+    }
+
+    /** @param  array<string, string>  $pendingMigrations */
+    private function ledgerMigrationIsPending(array $pendingMigrations): bool
+    {
+        foreach (array_keys($pendingMigrations) as $name) {
+            if (str_ends_with($name, '_create_deploy_operations_table')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

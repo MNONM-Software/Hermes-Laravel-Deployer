@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Schema;
 use Mnonm\HermesDeployer\Exceptions\CollidingStepNameException;
 use Mnonm\HermesDeployer\Exceptions\InvalidStepNameException;
 use Mnonm\HermesDeployer\Exceptions\MissingLedgerTableException;
+use Mnonm\HermesDeployer\Exceptions\MissingOperationsDirectoryException;
 use Mnonm\HermesDeployer\Models\DeployOperation;
 use Mnonm\HermesDeployer\StepPlanner;
 use Mnonm\HermesDeployer\Tests\TestCase;
@@ -196,12 +197,50 @@ class StepPlannerTest extends TestCase
         $this->planner()->pending();
     }
 
-    public function test_it_says_to_migrate_first_when_the_ledger_table_is_missing(): void
+    public function test_it_says_to_migrate_first_when_the_ledger_table_is_missing_and_nobody_creates_it(): void
     {
         Schema::drop('deploy_operations');
 
         $this->expectException(MissingLedgerTableException::class);
         $this->expectExceptionMessageMatches('/migrate/');
+
+        $this->planner()->pending();
+    }
+
+    public function test_it_treats_everything_as_pending_when_the_migration_that_creates_the_ledger_is_pending(): void
+    {
+        // La primera release de un proyecto que acaba de adoptar la librería: la
+        // tabla no existe todavía y la migración que la crea está en la lista.
+        // El ledger está vacío por definición, así que no hay nada que adivinar.
+        Schema::drop('deploy_operations');
+
+        $this->migration('2026_09_01_000000_create_deploy_operations_table');
+        $this->operation('2026_09_03_090000_backfill_saldo');
+
+        $steps = $this->planner()->pending();
+
+        $this->assertCount(2, $steps);
+        $this->assertSame('migrations', $steps[0]->kind);
+        $this->assertSame('operation', $steps[1]->kind);
+        $this->assertSame('2026_09_03_090000_backfill_saldo', $steps[1]->name);
+    }
+
+    public function test_it_rejects_a_file_without_any_underscore_instead_of_ignoring_it(): void
+    {
+        // El glob no puede esconder un archivo mal nombrado: un backfill que
+        // nadie corre y del que nadie se entera es el peor modo de falla.
+        $this->operation('backfill');
+
+        $this->expectException(InvalidStepNameException::class);
+
+        $this->planner()->pending();
+    }
+
+    public function test_it_refuses_to_run_when_the_operations_directory_does_not_exist(): void
+    {
+        rmdir($this->operationsPath);
+
+        $this->expectException(MissingOperationsDirectoryException::class);
 
         $this->planner()->pending();
     }

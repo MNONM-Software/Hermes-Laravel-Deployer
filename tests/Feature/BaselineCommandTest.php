@@ -9,6 +9,17 @@ class BaselineCommandTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // El directorio tiene que existir: ausente ya no es lo mismo que vacío,
+        // y el InstallCommandTest lo borra del skeleton compartido.
+        if (! is_dir(database_path('operations'))) {
+            mkdir(database_path('operations'), 0777, true);
+        }
+    }
+
     public function test_it_marks_every_operation_as_run_without_running_it(): void
     {
         $dir = database_path('operations');
