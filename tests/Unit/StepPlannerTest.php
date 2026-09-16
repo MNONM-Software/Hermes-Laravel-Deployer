@@ -9,6 +9,7 @@ use Mnonm\HermesDeployer\Exceptions\CollidingStepNameException;
 use Mnonm\HermesDeployer\Exceptions\InvalidStepNameException;
 use Mnonm\HermesDeployer\Exceptions\MissingLedgerTableException;
 use Mnonm\HermesDeployer\Exceptions\MissingOperationsDirectoryException;
+use Mnonm\HermesDeployer\Exceptions\OperationPredatesLedgerMigrationException;
 use Mnonm\HermesDeployer\Models\DeployOperation;
 use Mnonm\HermesDeployer\StepPlanner;
 use Mnonm\HermesDeployer\Tests\TestCase;
@@ -223,6 +224,23 @@ class StepPlannerTest extends TestCase
         $this->assertSame('migrations', $steps[0]->kind);
         $this->assertSame('operation', $steps[1]->kind);
         $this->assertSame('2026_09_03_090000_backfill_saldo', $steps[1]->name);
+    }
+
+    public function test_it_rejects_an_operation_dated_before_the_pending_ledger_migration(): void
+    {
+        // Si la operación es más vieja que la migración del ledger, el orden
+        // la pone primera: el runner la correría contra la base del cliente y
+        // moriría al no poder anotarla en una tabla que todavía no existe. Hay
+        // que rechazar en el descubrimiento, antes de tocar un solo dato.
+        Schema::drop('deploy_operations');
+
+        $this->migration('2026_09_16_120000_create_deploy_operations_table');
+        $this->operation('2026_01_05_090000_backfill_viejo');
+
+        $this->expectException(OperationPredatesLedgerMigrationException::class);
+        $this->expectExceptionMessageMatches('/2026_01_05_090000_backfill_viejo/');
+
+        $this->planner()->pending();
     }
 
     public function test_it_rejects_a_file_without_any_underscore_instead_of_ignoring_it(): void

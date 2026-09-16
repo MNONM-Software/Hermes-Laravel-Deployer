@@ -8,6 +8,7 @@ use Mnonm\HermesDeployer\Exceptions\CollidingStepNameException;
 use Mnonm\HermesDeployer\Exceptions\InvalidStepNameException;
 use Mnonm\HermesDeployer\Exceptions\MissingLedgerTableException;
 use Mnonm\HermesDeployer\Exceptions\MissingOperationsDirectoryException;
+use Mnonm\HermesDeployer\Exceptions\OperationPredatesLedgerMigrationException;
 use Mnonm\HermesDeployer\Models\DeployOperation;
 
 /**
@@ -99,7 +100,23 @@ final class StepPlanner
             // vacío por definición y todo es pendiente: no se adivina, se sabe.
             // Es la primera release de un proyecto que acaba de adoptar la
             // librería, y morir acá es morir con la app apagada.
-            if ($this->ledgerMigrationIsPending($pendingMigrations)) {
+            $ledgerMigration = $this->pendingLedgerMigration($pendingMigrations);
+
+            if ($ledgerMigration !== null) {
+                // Salvo que haya una operación fechada ANTES que esa migración:
+                // el orden la pondría primera, el runner la correría contra la
+                // base del cliente y recién ahí moriría, porque no puede anotar
+                // la fila en una tabla que todavía no existe. Mejor rechazar
+                // antes de devolver nada: fallar en el descubrimiento, sin
+                // haber tocado un solo dato.
+                $ledgerTimestamp = $this->timestampsFor([$ledgerMigration => $ledgerMigration])[$ledgerMigration];
+
+                foreach ($this->timestampsFor($files) as $name => $timestamp) {
+                    if ($timestamp < $ledgerTimestamp) {
+                        throw OperationPredatesLedgerMigrationException::for($files[$name], $ledgerMigration);
+                    }
+                }
+
                 return $files;
             }
 
@@ -136,15 +153,15 @@ final class StepPlanner
     }
 
     /** @param  array<string, string>  $pendingMigrations */
-    private function ledgerMigrationIsPending(array $pendingMigrations): bool
+    private function pendingLedgerMigration(array $pendingMigrations): ?string
     {
         foreach (array_keys($pendingMigrations) as $name) {
             if (str_ends_with($name, '_create_deploy_operations_table')) {
-                return true;
+                return $name;
             }
         }
 
-        return false;
+        return null;
     }
 
     /**
