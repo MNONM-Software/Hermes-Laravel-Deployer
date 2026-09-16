@@ -6,6 +6,7 @@ use Illuminate\Database\Migrations\Migrator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Mnonm\HermesDeployer\Exceptions\CollidingStepNameException;
+use Mnonm\HermesDeployer\Exceptions\InvalidStepNameException;
 use Mnonm\HermesDeployer\Exceptions\MissingLedgerTableException;
 use Mnonm\HermesDeployer\Models\DeployOperation;
 use Mnonm\HermesDeployer\StepPlanner;
@@ -28,6 +29,32 @@ class StepPlannerTest extends TestCase
         $this->operationsPath = $root.'/operations';
         mkdir($this->migrationsPath, 0777, true);
         mkdir($this->operationsPath, 0777, true);
+    }
+
+    protected function tearDown(): void
+    {
+        $this->removeDirectory(dirname($this->migrationsPath));
+
+        parent::tearDown();
+    }
+
+    private function removeDirectory(string $dir): void
+    {
+        if (! is_dir($dir)) {
+            return;
+        }
+
+        foreach (scandir($dir) ?: [] as $item) {
+            if ($item === '.' || $item === '..') {
+                continue;
+            }
+
+            $path = $dir.'/'.$item;
+
+            is_dir($path) ? $this->removeDirectory($path) : unlink($path);
+        }
+
+        rmdir($dir);
     }
 
     private function migration(string $name): void
@@ -117,6 +144,17 @@ class StepPlannerTest extends TestCase
 
     public function test_it_returns_nothing_when_everything_ran(): void
     {
+        $this->migration('2026_09_02_110000_add_saldo_column');
+        $this->operation('2026_09_03_090000_backfill_saldo');
+
+        $this->app->make('migrator')->getRepository()
+            ->log('2026_09_02_110000_add_saldo_column', 1);
+
+        DeployOperation::create([
+            'operation' => '2026_09_03_090000_backfill_saldo',
+            'ran_at' => now(),
+        ]);
+
         $this->assertSame([], $this->planner()->pending());
     }
 
@@ -126,6 +164,25 @@ class StepPlannerTest extends TestCase
         $this->operation('2026_09_03_090000_same_name');
 
         $this->expectException(CollidingStepNameException::class);
+
+        $this->planner()->pending();
+    }
+
+    public function test_it_rejects_a_migration_and_an_operation_with_the_same_timestamp_but_different_descriptions(): void
+    {
+        $this->migration('2026_09_03_090000_make_saldo_not_null');
+        $this->operation('2026_09_03_090000_backfill_saldo');
+
+        $this->expectException(CollidingStepNameException::class);
+
+        $this->planner()->pending();
+    }
+
+    public function test_it_rejects_a_file_without_a_timestamp_prefix(): void
+    {
+        $this->operation('backfill_sin_timestamp');
+
+        $this->expectException(InvalidStepNameException::class);
 
         $this->planner()->pending();
     }

@@ -6,11 +6,11 @@ use RuntimeException;
 
 class CollidingStepNameException extends RuntimeException
 {
-    public static function for(string $name): self
+    public static function for(string $migrationName, string $operationName): self
     {
         return new self(
-            "Hay una migración y una operación con el mismo nombre ({$name}). ".
-            'El orden entre las dos queda indefinido: renombrá una de las dos.'
+            "La migración `{$migrationName}` y la operación `{$operationName}` comparten timestamp. ".
+            'El orden entre las dos queda indefinido: cambiá el timestamp de una de las dos.'
         );
     }
 }

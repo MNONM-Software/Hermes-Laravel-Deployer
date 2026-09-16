@@ -5,6 +5,7 @@ namespace Mnonm\HermesDeployer;
 use Illuminate\Database\Migrations\Migrator;
 use Illuminate\Support\Facades\Schema;
 use Mnonm\HermesDeployer\Exceptions\CollidingStepNameException;
+use Mnonm\HermesDeployer\Exceptions\InvalidStepNameException;
 use Mnonm\HermesDeployer\Exceptions\MissingLedgerTableException;
 use Mnonm\HermesDeployer\Models\DeployOperation;
 
@@ -29,9 +30,17 @@ final class StepPlanner
         $migrations = $this->pendingMigrations();
         $operations = $this->pendingOperations();
 
-        foreach (array_keys($migrations) as $name) {
-            if (isset($operations[$name])) {
-                throw CollidingStepNameException::for($name);
+        // No es el nombre completo lo que puede colisionar: son los timestamps.
+        // Dos archivos con igual timestamp y distinta descripción también dejan
+        // el orden entre las dos carpetas indefinido.
+        $migrationTimestamps = $this->timestampsFor($migrations);
+        $operationTimestamps = $this->timestampsFor($operations);
+
+        foreach ($operationTimestamps as $operationName => $timestamp) {
+            $collidingMigration = array_search($timestamp, $migrationTimestamps, true);
+
+            if ($collidingMigration !== false) {
+                throw CollidingStepNameException::for($collidingMigration, $operationName);
             }
         }
 
@@ -42,6 +51,25 @@ final class StepPlanner
         ksort($all);
 
         return $this->group($all, $migrations);
+    }
+
+    /**
+     * @param  array<string, string>  $files  nombre => ruta
+     * @return array<string, string> nombre => prefijo de timestamp
+     */
+    private function timestampsFor(array $files): array
+    {
+        $timestamps = [];
+
+        foreach ($files as $name => $path) {
+            if (! preg_match('/^\d{4}_\d{2}_\d{2}_\d{6}/', $name, $matches)) {
+                throw InvalidStepNameException::for($path);
+            }
+
+            $timestamps[$name] = $matches[0];
+        }
+
+        return $timestamps;
     }
 
     /** @return array<string, string> nombre => ruta */
@@ -66,7 +94,7 @@ final class StepPlanner
 
         $files = [];
 
-        foreach (glob($this->operationsPath.'/*.php') ?: [] as $path) {
+        foreach (glob($this->operationsPath.'/*_*.php') ?: [] as $path) {
             $files[basename($path, '.php')] = $path;
         }
 
