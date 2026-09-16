@@ -45,12 +45,27 @@ class ReleaseCommand extends Command
         $config = config_path('app.php');
         $contents = (string) file_get_contents($config);
 
-        file_put_contents($config, preg_replace(
+        $updated = preg_replace(
             "/'version'\s*=>\s*'[^']*'/",
             "'version' => '{$version}'",
             $contents,
-            1
-        ));
+            1,
+            $replacements
+        );
+
+        // Sin esta guarda el comando puede decir que subió el número sin haber
+        // tocado nada: un proyecto que todavía no tiene la clave `version` en
+        // config/app.php no matchea, y el preg_replace devuelve el archivo igual.
+        if ($replacements === 0) {
+            $this->error(
+                'No encontré la clave `version` en config/app.php. '.
+                "Agregale  'version' => '{$version}',  y volvé a correr el comando."
+            );
+
+            return 1;
+        }
+
+        file_put_contents($config, (string) $updated);
 
         $this->newLine();
         $this->info("CHANGELOG.md y config/app.php actualizados a {$version}.");

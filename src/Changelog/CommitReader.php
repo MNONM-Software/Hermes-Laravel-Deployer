@@ -11,18 +11,21 @@ final class CommitReader
     /** @return array{tag: ?string, commits: list<string>} */
     public function sinceLastTag(): array
     {
+        // "Esto no es un repo" es un estado legítimo y se contesta vacío. Lo que
+        // NO se atrapa es que git falle por otra razón —binario ausente, permisos,
+        // repo corrupto—: eso tiene que explotar, porque si no el comando redacta
+        // una entrada vacía y nadie se entera de que el entorno está roto.
+        if (! is_dir($this->repositoryPath.'/.git')) {
+            return ['tag' => null, 'commits' => []];
+        }
+
         $tag = $this->lastTag();
 
         $range = $tag === null ? 'HEAD' : "{$tag}..HEAD";
 
-        try {
-            $log = $this->git(['log', '--no-merges', '--reverse', '--pretty=format:%s', $range]);
-        } catch (RuntimeException) {
-            // Fuera de un repo de git, o en uno sin commits: no hay nada que
-            // redactar y no es un error. El guardado va también acá y no sólo en
-            // lastTag(), que es donde es fácil olvidarlo.
-            return ['tag' => $tag, 'commits' => []];
-        }
+        // --reverse porque `git log` devuelve del más nuevo al más viejo, y la
+        // entrada del changelog se lee en el orden en que pasaron las cosas.
+        $log = $this->git(['log', '--reverse', '--no-merges', '--pretty=format:%s', $range]);
 
         $commits = array_values(array_filter(
             array_map('trim', explode("\n", $log)),

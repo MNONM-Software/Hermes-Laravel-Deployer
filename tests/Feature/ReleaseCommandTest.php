@@ -51,4 +51,20 @@ class ReleaseCommandTest extends TestCase
     {
         $this->artisan('deploy:release pepe')->assertExitCode(1);
     }
+
+    public function test_it_refuses_to_claim_success_when_config_has_no_version_key(): void
+    {
+        file_put_contents(base_path('CHANGELOG.md'), "# Changelog\n");
+        $configContents = "<?php\n\nreturn [\n    'name' => 'Ceo',\n];\n";
+        file_put_contents(config_path('app.php'), $configContents);
+
+        $this->artisan('deploy:release 1.5.0')->assertExitCode(1);
+
+        // No tocó el archivo: no hay clave `version` para reemplazar.
+        $this->assertSame($configContents, file_get_contents(config_path('app.php')));
+
+        // El changelog sí queda redactado: es mejor perder el aviso a mano que
+        // perder la redacción.
+        $this->assertStringContainsString('## v1.5.0', file_get_contents(base_path('CHANGELOG.md')));
+    }
 }
