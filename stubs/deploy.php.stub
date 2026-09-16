@@ -1,0 +1,34 @@
+<?php
+
+// Manifiesto de deploy que lee Hermes. El vocabulario es cerrado: ver la
+// sección 4.5 del spec del deployer.
+return [
+    'version' => 1,
+
+    'context' => [
+        'type' => 'docker_compose_exec',
+        'project_dir' => '{{ target.infra_path }}',
+        'service' => 'php-fpm',
+        'user' => 'www-data',
+        'workdir' => '/var/www/app',
+    ],
+
+    'steps' => [
+        ['type' => 'maintenance.on'],
+        ['type' => 'backup.create'],
+        ['type' => 'git.pull'],
+        ['type' => 'deps.install'],
+
+        // Migraciones y arreglos de datos en un solo orden, el que dictan los
+        // timestamps de database/migrations/ y database/operations/.
+        [
+            'type' => 'command',
+            'argv' => ['php', 'artisan', 'deploy:run'],
+            'touches_db' => true,
+            'timeout' => 1800,
+        ],
+
+        ['type' => 'cache.warm'],
+        ['type' => 'service.restart', 'services' => ['php-fpm']],
+    ],
+];

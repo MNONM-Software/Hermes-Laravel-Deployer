@@ -1,0 +1,29 @@
+<?php
+
+namespace Tests\Feature;
+
+use Tests\TestCase;
+
+class DeployStepNamesDoNotCollideTest extends TestCase
+{
+    public function test_no_migration_shares_its_timestamp_with_an_operation(): void
+    {
+        // Lo que importa es el timestamp, no el nombre entero: dos archivos del
+        // mismo segundo con descripciones distintas se ordenarían por la
+        // descripción, alfabéticamente, y ahí el orden es un accidente.
+        $timestamps = fn (string $dir): array => array_map(
+            static fn (string $path): string => implode('_', array_slice(
+                explode('_', basename($path, '.php')), 0, 4
+            )),
+            glob(database_path($dir).'/*_*.php') ?: []
+        );
+
+        $colliding = array_intersect($timestamps('migrations'), $timestamps('operations'));
+
+        $this->assertSame(
+            [],
+            array_values($colliding),
+            'Una migración y una operación comparten timestamp: el orden entre las dos es un accidente alfabético.'
+        );
+    }
+}

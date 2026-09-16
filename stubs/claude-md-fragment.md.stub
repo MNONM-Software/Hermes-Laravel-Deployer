@@ -1,0 +1,42 @@
+## Deploy, changelog y versionado
+
+Este proyecto usa `mnonm/hermes-laravel-deployer`. Dos reglas, y las dos importan.
+
+### 1. Los arreglos de datos son operaciones, nunca migraciones
+
+Una migración **agrega, cambia o borra esquema y nada más**. Todo lo que escriba filas —backfill,
+saneamiento, normalización, poner un default sobre lo ya cargado— va en un archivo de
+`database/operations/`, con el mismo esquema de nombre que una migración
+(`YYYY_MM_DD_HHMMSS_descripcion.php`), que devuelve una clase anónima extendiendo
+`Mnonm\HermesDeployer\Operation`.
+
+**El orden entre migraciones y operaciones sale del timestamp del nombre**, y nadie lo declara. Si
+tu backfill tiene que correr entre dos migraciones, poneles los timestamps en ese orden y listo:
+
+```
+database/migrations/2026_09_02_110000_add_saldo_column.php
+database/operations/2026_09_03_090000_backfill_saldo.php
+database/migrations/2026_09_04_100000_make_saldo_not_null.php
+```
+
+La operación tiene que ser **idempotente** y **no-op donde no aplica**: la misma operación viaja a
+todas las instalaciones, y el estado de cuáles corrieron es por instancia (tabla `deploy_operations`).
+
+`php artisan deploy:run` corre todo lo pendiente en orden. `php artisan deploy:status` muestra qué
+falta sin ejecutar nada. `php artisan deploy:run --dry-run` corre las operaciones en seco —es
+herramienta de dev y staging: no aplica migraciones, así que se detiene en la primera operación que
+dependa de una pendiente—.
+
+### 2. Al abrir el PR a `main`, se sube la versión
+
+Corré `php artisan deploy:release`: redacta la entrada del `CHANGELOG.md` desde los commits y
+propone el número (`MAYOR.MEDIO.ÚLTIMO`; último = fixes, medio = features, mayor = cambios grandes).
+**El número lo confirmás vos** — el mayor no sale de los commits nunca. El comando deja los cambios
+sin commitear.
+
+Un gate de CI rechaza el PR a `main` si el número no subió o si falta la entrada del changelog, y el
+tag `vX.Y.Z` lo pone otro job al mergear. Hermes despliega ese tag.
+
+`DEPLOY_PENDING.md` es un tablero legible para los pasos manuales que **no son scripts de datos**: un
+`storage:link`, una variable de entorno nueva, un orden a respetar. No ejecuta nada y no es fuente de
+verdad — el "qué corrió y qué falta por instancia" lo da `deploy:status`.

@@ -1,0 +1,52 @@
+name: release
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  gate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: La version tiene que haber subido
+        run: |
+          base=$(git show origin/${{ github.base_ref }}:config/app.php | grep -oP "'version'\s*=>\s*'\K[^']+")
+          head=$(grep -oP "'version'\s*=>\s*'\K[^']+" config/app.php)
+          if [ "$base" = "$head" ]; then
+            echo "config/app.php sigue en $base. Corré 'php artisan deploy:release'."
+            exit 1
+          fi
+          echo "$base -> $head"
+
+      - name: El changelog tiene que tener la entrada de esa version
+        run: |
+          head=$(grep -oP "'version'\s*=>\s*'\K[^']+" config/app.php)
+          if ! grep -q "## v$head" CHANGELOG.md; then
+            echo "CHANGELOG.md no tiene la entrada '## v$head'."
+            exit 1
+          fi
+
+  tag:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Taggear la version
+        run: |
+          version=$(grep -oP "'version'\s*=>\s*'\K[^']+" config/app.php)
+          if git ls-remote --tags origin "refs/tags/v$version" | grep -q .; then
+            echo "El tag v$version ya existe."
+            exit 0
+          fi
+          git tag "v$version"
+          git push origin "v$version"
