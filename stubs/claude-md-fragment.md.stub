@@ -1,6 +1,12 @@
 ## Deploy, changelog y versionado
 
-Este proyecto usa `mnonm/hermes-laravel-deployer`. Dos reglas, y las dos importan.
+Este proyecto usa `mnonm/hermes-laravel-deployer`. Dos reglas, y las dos importan, más una nota de
+configuración.
+
+La ruta de salud que Hermes chequea después de cada deploy es `config('hermes-deployer.health_path')`
+(`HERMES_HEALTH_PATH` en `.env`, por defecto `/health`). Si el proyecto se sirve bajo un prefijo
+(por ejemplo `/ceo`), la ruta tiene que llevarlo —`/ceo/health`— o el chequeo pega contra un 404
+desde afuera aunque la ruta exista para Laravel.
 
 ### 1. Los arreglos de datos son operaciones, nunca migraciones
 

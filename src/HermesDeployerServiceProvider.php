@@ -15,6 +15,8 @@ class HermesDeployerServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->mergeConfigFrom(dirname(__DIR__).'/config/hermes-deployer.php', 'hermes-deployer');
+
         // El closure se resuelve tarde, después del boot() de los demás
         // providers: para entonces migrator->paths() ya tiene las rutas que
         // cualquier paquete registró con loadMigrationsFrom(). Sin ellas
@@ -50,6 +52,10 @@ class HermesDeployerServiceProvider extends ServiceProvider
                 StatusCommand::class,
                 ReleaseCommand::class,
             ]);
+
+            $this->publishes([
+                dirname(__DIR__).'/config/hermes-deployer.php' => config_path('hermes-deployer.php'),
+            ], 'hermes-deployer-config');
         }
     }
 }

@@ -43,11 +43,17 @@ class InstallCommand extends Command
             $stubs.'/DeployStepNamesDoNotCollideTest.php.stub',
             base_path('tests/Feature/DeployStepNamesDoNotCollideTest.php')
         );
+        $this->copy(
+            dirname(__DIR__, 2).'/config/hermes-deployer.php',
+            config_path('hermes-deployer.php')
+        );
+
+        $healthPath = $this->healthPath();
 
         $this->newLine();
         $this->info('Listo. Lo que falta hacer a mano, porque toca archivos que ya existen:');
         $this->line('  1. config/app.php: agregá  \'version\' => \'1.0.0\'');
-        $this->line('  2. routes/web.php: Route::get(\'/health\', '.HealthController::class.');');
+        $this->line('  2. routes/web.php: Route::get(\''.$healthPath.'\', '.HealthController::class.');');
         $this->line('  3. CLAUDE.md: pegá el fragmento de '.$stubs.'/claude-md-fragment.md.stub');
         $this->line('  4. php artisan migrate');
 
@@ -69,7 +75,7 @@ class InstallCommand extends Command
         }
 
         if (! $this->healthRouteAnswers()) {
-            $missing[] = 'routes: GET /health no resuelve';
+            $missing[] = 'routes: GET '.$this->healthPath().' no resuelve';
         }
 
         if (! $this->claudeMdHasTheFragment()) {
@@ -96,7 +102,7 @@ class InstallCommand extends Command
     private function healthRouteAnswers(): bool
     {
         try {
-            $route = Route::getRoutes()->match(Request::create('/health', 'GET'));
+            $route = Route::getRoutes()->match(Request::create($this->healthPath(), 'GET'));
         } catch (Throwable) {
             return false;
         }
@@ -104,9 +110,20 @@ class InstallCommand extends Command
         // match() también devuelve rutas `fallback`: Laravel las ordena al final
         // y las entrega cuando nada más matcheó. Sin este chequeo, cualquier
         // proyecto con un Route::fallback (SPA, Inertia) pasa el verify sin que
-        // /health exista de verdad. Y una /health ajena tampoco sirve: el
+        // la ruta de salud exista de verdad. Y una ruta ajena tampoco sirve: el
         // deployer espera el JSON con la versión que sólo da nuestro controller.
         return ! $route->isFallback && $route->getControllerClass() === HealthController::class;
+    }
+
+    /**
+     * Configurable porque `/health` no es alcanzable desde afuera cuando el
+     * proyecto se sirve bajo un prefijo (nginx con un único location que sólo
+     * deja pasar ese prefijo): ahí el healthcheck de Hermes pediría una ruta
+     * que Laravel resuelve pero que nunca llega desde el exterior.
+     */
+    private function healthPath(): string
+    {
+        return (string) config('hermes-deployer.health_path');
     }
 
     private function claudeMdHasTheFragment(): bool

@@ -16,10 +16,15 @@ php artisan migrate
 ```
 
 `hermes:install` publica la migración de la tabla, `database/operations/`, el `deploy.php` que lee
-Hermes, el workflow de CI y un test de colisión de nombres, y te dice los cuatro pasos que quedan a
-mano porque tocan archivos que ya existen. Lo que no deja hecho lo deja **verificado**: si falta la
-clave `version` en `config/app.php`, la ruta `GET /health` o el fragmento de `CLAUDE.md`, el comando
-los lista y sale con código distinto de cero.
+Hermes, el workflow de CI, un test de colisión de nombres y `config/hermes-deployer.php`, y te dice
+los cuatro pasos que quedan a mano porque tocan archivos que ya existen. Lo que no deja hecho lo deja
+**verificado**: si falta la clave `version` en `config/app.php`, la ruta de salud (`health_path` del
+config, `/health` por defecto) o el fragmento de `CLAUDE.md`, el comando los lista y sale con código
+distinto de cero.
+
+La ruta de salud es configurable (`health_path` en `config/hermes-deployer.php`, o `HERMES_HEALTH_PATH`
+en `.env`) porque tiene que ser alcanzable desde afuera: un proyecto servido bajo un prefijo (por
+ejemplo `/ceo`) la registra en `/ceo/health`, no en `/health`.
 
 ## Los comandos
 

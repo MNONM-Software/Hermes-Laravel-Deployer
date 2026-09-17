@@ -17,6 +17,7 @@ class InstallCommandTest extends TestCase
             base_path('tests/Feature/DeployStepNamesDoNotCollideTest.php'),
             database_path('operations/.gitkeep'),
             base_path('CLAUDE.md'),
+            config_path('hermes-deployer.php'),
             ...(glob(database_path('migrations/*_create_deploy_operations_table.php')) ?: []),
         ];
     }
@@ -149,5 +150,39 @@ class InstallCommandTest extends TestCase
             1,
             glob(database_path('migrations/*_create_deploy_operations_table.php')) ?: []
         );
+    }
+
+    /**
+     * Un proyecto servido bajo un prefijo (ArtisanoCEO bajo /ceo) registra su
+     * ruta de salud ahí: el verify tiene que mirar esa ruta, no /health.
+     */
+    public function test_it_passes_when_the_health_route_lives_at_the_configured_path(): void
+    {
+        config()->set('hermes-deployer.health_path', '/ceo/health');
+        config()->set('app.version', '1.0.0');
+        file_put_contents(
+            base_path('CLAUDE.md'),
+            (string) file_get_contents(dirname(__DIR__, 2).'/stubs/claude-md-fragment.md.stub')
+        );
+
+        Route::get('/ceo/health', HealthController::class);
+
+        $this->artisan('hermes:install')->assertExitCode(0);
+    }
+
+    public function test_it_fails_when_the_health_route_is_wired_at_health_but_the_config_points_elsewhere(): void
+    {
+        config()->set('hermes-deployer.health_path', '/ceo/health');
+        config()->set('app.version', '1.0.0');
+        file_put_contents(
+            base_path('CLAUDE.md'),
+            (string) file_get_contents(dirname(__DIR__, 2).'/stubs/claude-md-fragment.md.stub')
+        );
+
+        Route::get('/health', HealthController::class);
+
+        $this->artisan('hermes:install')
+            ->expectsOutputToContain('GET /ceo/health no resuelve')
+            ->assertExitCode(1);
     }
 }
