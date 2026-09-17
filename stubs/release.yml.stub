@@ -21,7 +21,12 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          base=$(git show "origin/$BASE_REF:config/app.php" | grep -oP "'version'\s*=>\s*'\K[^']+")
+          # La PR que instala el versionado es la unica cuyo base todavia no
+          # tiene el numero: ahi el piso es 0.0.0 y no un error. Sin el `|| true`
+          # el `-e` del shell corta en la asignacion, antes de imprimir nada, y el
+          # job queda rojo sin decir por que.
+          base=$(git show "origin/$BASE_REF:config/app.php" | grep -oP "'version'\s*=>\s*'\K[^']+" || true)
+          base=${base:-0.0.0}
           head=$(grep -oP "'version'\s*=>\s*'\K[^']+" config/app.php)
           if [ "$base" = "$head" ]; then
             echo "config/app.php sigue en $base. Corré 'php artisan deploy:release'."
