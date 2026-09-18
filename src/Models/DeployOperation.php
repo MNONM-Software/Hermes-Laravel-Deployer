@@ -27,4 +27,22 @@ class DeployOperation extends Model
     {
         return ['ran_at' => 'datetime'];
     }
+
+    /**
+     * Escribe la fila del ledger. Vive acá y no en cada llamador porque son
+     * dos —el runner cuando una operación termina bien, y el baseline cuando
+     * la marca sin ejecutarla— y las dos filas tienen que ser idénticas: una
+     * que olvidara la versión haría mentir al `deploy:status`.
+     *
+     * No se usa el `::create()` mágico: sin Larastan, PHPStan no reconoce ese
+     * método estático de Eloquent.
+     */
+    public static function record(string $operation): void
+    {
+        (new self)->fill([
+            'operation' => $operation,
+            'ran_at' => now(),
+            'app_version' => config('app.version'),
+        ])->save();
+    }
 }

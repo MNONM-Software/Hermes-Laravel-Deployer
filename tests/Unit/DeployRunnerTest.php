@@ -45,6 +45,48 @@ class DeployRunnerTest extends TestCase
         ]);
     }
 
+    public function test_in_baseline_it_marks_the_operation_without_running_it(): void
+    {
+        config()->set('app.version', '2.0.0');
+
+        $executor = new RecordingStepExecutor;
+
+        $exit = (new DeployRunner($executor))->run([
+            DeployStep::migrations(['/m/2026_09_02_110000_add_saldo_column.php']),
+            DeployStep::operation('/o/2026_09_03_090000_backfill_saldo.php'),
+        ], dryRun: false, report: fn (string $line) => null, baseline: true);
+
+        $this->assertSame(0, $exit);
+
+        // Las migraciones corren igual: una instalación nueva necesita el
+        // esquema. Lo que no corre es el backfill, que no tiene nada que
+        // rellenar contra una base recién creada.
+        $this->assertSame(['migrate:2026_09_02_110000_add_saldo_column'], $executor->calls);
+
+        $this->assertDatabaseHas('deploy_operations', [
+            'operation' => '2026_09_03_090000_backfill_saldo',
+            'app_version' => '2.0.0',
+        ]);
+    }
+
+    public function test_in_baseline_the_log_says_that_the_operation_was_not_executed(): void
+    {
+        // El log es lo único que ve quien mira el deploy: una línea `ok` acá
+        // sería indistinguible de haberla corrido de verdad.
+        $lines = [];
+
+        (new DeployRunner(new RecordingStepExecutor))->run(
+            [DeployStep::operation('/o/2026_09_03_090000_backfill_saldo.php')],
+            dryRun: false,
+            report: function (string $line) use (&$lines): void {
+                $lines[] = $line;
+            },
+            baseline: true,
+        );
+
+        $this->assertStringContainsString('sin ejecutarla', implode("\n", $lines));
+    }
+
     public function test_it_does_not_say_ok_when_the_ledger_row_cannot_be_written(): void
     {
         // La fila ya está: el unique de `operation` hace fallar el insert. Antes

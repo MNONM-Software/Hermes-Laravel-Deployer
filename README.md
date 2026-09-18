@@ -32,8 +32,9 @@ ejemplo `/ceo`) la registra en `/ceo/health`, no en `/health`.
 | --- | --- |
 | `deploy:run` | Corre las migraciones y las operaciones pendientes de esta instalación, en orden. Es lo que corre Hermes |
 | `deploy:run --dry-run` | Corre las operaciones en seco. No escribe nada y no aplica migraciones, así que se detiene en la primera operación que dependa de una pendiente, y en ese caso sale con código 2. Herramienta de dev y staging |
+| `deploy:run --baseline` | Instalación nueva: aplica las migraciones y marca las operaciones como corridas **sin ejecutarlas**. Un backfill no tiene nada que rellenar contra una base que acaba de nacer, y correr años de backfills en el alta de un cliente es ventana de mantenimiento y riesgo a cambio de nada. Se excluye con `--dry-run` |
 | `deploy:status` | Qué corrió y qué falta acá, sin ejecutar nada |
-| `deploy:baseline` | Marca todo como corrido sin ejecutarlo. Pregunta antes; `--force` para uso no interactivo. Una vez por instalación, al adoptar el sistema en un proyecto que ya venía andando |
+| `deploy:baseline` | Marca todo como corrido sin ejecutarlo. Pregunta antes; `--force` para uso no interactivo. Una vez por instalación, al adoptar el sistema en un proyecto que ya venía andando. Para una instalación nueva no hace falta: eso es `deploy:run --baseline`, que además aplica las migraciones |
 | `deploy:release` | Redacta la entrada del `CHANGELOG.md` y sube el número. No commitea nada |
 
 ## Una operación

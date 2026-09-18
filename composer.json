@@ -33,7 +33,7 @@
         "test": [
             "@php vendor/bin/phpunit",
             "@php vendor/bin/pint --dirty --format agent",
-            "@php vendor/bin/phpstan analyse"
+            "@php vendor/bin/phpstan analyse --memory-limit=-1"
         ]
     },
     "minimum-stability": "stable",

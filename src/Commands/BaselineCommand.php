@@ -41,13 +41,7 @@ class BaselineCommand extends Command
         }
 
         foreach ($operations as $step) {
-            // fill()->save() y no ::create(): PHPStan nivel 7 sin Larastan no
-            // conoce el ::create() mágico de Eloquent. Es lo mismo.
-            (new DeployOperation)->fill([
-                'operation' => $step->name,
-                'ran_at' => now(),
-                'app_version' => config('app.version'),
-            ])->save();
+            DeployOperation::record((string) $step->name);
 
             $this->line("{$step->name}: marcada como corrida");
         }

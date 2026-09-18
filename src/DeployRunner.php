@@ -17,9 +17,10 @@ final class DeployRunner
     /**
      * @param  list<DeployStep>  $steps
      * @param  callable(string): void  $report
+     * @param  bool  $baseline  marca las operaciones como corridas **sin ejecutarlas**: es una instalación nueva, donde un backfill no tiene nada que rellenar
      * @return int código de salida: 0 bien, 1 fallo, 2 seco que no pudo terminar
      */
-    public function run(array $steps, bool $dryRun, callable $report): int
+    public function run(array $steps, bool $dryRun, callable $report, bool $baseline = false): int
     {
         if ($steps === []) {
             $report('No hay nada pendiente.');
@@ -59,6 +60,19 @@ final class DeployRunner
                 return 2;
             }
 
+            if ($baseline) {
+                // Las migraciones de arriba sí corrieron: el esquema hace falta.
+                // Lo que se saltea es el backfill, porque contra una base recién
+                // creada no tiene filas que rellenar, y correr años de backfills
+                // en el alta de un cliente es tiempo de ventana y riesgo a cambio
+                // de nada.
+                if (! $this->attempt(fn () => DeployOperation::record($name), "{$name}: marcada como corrida, sin ejecutarla", $report)) {
+                    return 1;
+                }
+
+                continue;
+            }
+
             $work = function () use ($step, $dryRun, $name): void {
                 $this->executor->operation($step->paths[0], $dryRun);
 
@@ -68,13 +82,7 @@ final class DeployRunner
 
                 // La fila se escribe dentro del attempt: si no se puede escribir,
                 // la línea del log no tiene que haber dicho `ok` antes.
-                // No usamos el ::create() mágico: sin Larastan, PHPStan no
-                // reconoce ese método estático de Eloquent (staticMethod.notFound).
-                (new DeployOperation)->fill([
-                    'operation' => $name,
-                    'ran_at' => now(),
-                    'app_version' => config('app.version'),
-                ])->save();
+                DeployOperation::record($name);
             };
 
             if (! $this->attempt($work, $name, $report)) {
