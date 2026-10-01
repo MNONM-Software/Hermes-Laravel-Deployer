@@ -3,6 +3,7 @@
 namespace Mnonm\HermesDeployer\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Schema;
 use Mnonm\HermesDeployer\Models\DeployOperation;
 use Mnonm\HermesDeployer\StepPlanner;
 
@@ -14,7 +15,11 @@ class StatusCommand extends Command
 
     public function handle(StepPlanner $planner): int
     {
-        $ran = DeployOperation::query()->orderBy('ran_at')->get();
+        // Sin la tabla —una instalación que todavía no corrió su primer
+        // deploy— no corrió ninguna operación: no es un error.
+        $ran = Schema::hasTable('deploy_operations')
+            ? DeployOperation::query()->orderBy('ran_at')->get()
+            : collect();
 
         $this->info('Operaciones ya corridas en esta instalación: '.$ran->count());
 

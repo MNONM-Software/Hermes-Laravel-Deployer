@@ -82,7 +82,13 @@ final class StepPlanner
         // database/migrations. Las dos tienen que estar: quien arma el planner
         // las une.
         $files = $this->migrator->getMigrationFiles($this->migrationPaths);
-        $ran = $this->migrator->getRepository()->getRan();
+
+        // Una base recién creada no tiene ni la tabla `migrations`: todo está
+        // pendiente, y la crea el propio `migrate` al aplicarlas. Preguntarle
+        // al repositorio sin esto revienta el primer deploy de una instalación.
+        $ran = $this->migrator->repositoryExists()
+            ? $this->migrator->getRepository()->getRan()
+            : [];
 
         return array_diff_key($files, array_flip($ran));
     }
