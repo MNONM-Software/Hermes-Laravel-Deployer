@@ -30,19 +30,32 @@ class RestoreCommand extends Command
 
             // Desde acá se toca la base. Todo lo anterior se verificó sin
             // tocarla: un zip que no sirve deja la base como la dejó la falla.
+            $restored = [];
+
             foreach ($dumps as $connection => $dump) {
-                $wipe = ['--database' => $connection, '--force' => true, '--drop-views' => true];
+                try {
+                    $wipe = ['--database' => $connection, '--force' => true, '--drop-views' => true];
 
-                if (BackupConfig::driver($connection) === 'pgsql') {
-                    $wipe['--drop-types'] = true;
+                    if (BackupConfig::driver($connection) === 'pgsql') {
+                        $wipe['--drop-types'] = true;
+                    }
+
+                    if ($this->call('db:wipe', $wipe) !== 0) {
+                        throw new BackupException("db:wipe falló en la conexión {$connection}.");
+                    }
+
+                    $loader->load($connection, $dump);
+                } catch (BackupException $e) {
+                    $untouched = array_values(array_diff(array_keys($dumps), $restored, [$connection]));
+
+                    throw new BackupException(
+                        "la restauración se cortó en la conexión {$connection}, que quedó vacía o a medio cargar porque db:wipe ya corrió: {$e->getMessage()} "
+                        .'Restauradas: '.($restored === [] ? 'ninguna' : implode(', ', $restored)).'. '
+                        .'Sin tocar: '.($untouched === [] ? 'ninguna' : implode(', ', $untouched)).'.'
+                    );
                 }
 
-                if ($this->call('db:wipe', $wipe) !== 0) {
-                    throw new BackupException("db:wipe falló en la conexión {$connection}.");
-                }
-
-                $loader->load($connection, $dump);
-
+                $restored[] = $connection;
                 $this->info("{$connection}: restaurada desde ".basename($zipPath));
             }
 
@@ -118,6 +131,10 @@ class RestoreCommand extends Command
 
             if (! is_file($path)) {
                 throw new BackupException("el zip no tiene el dump de la conexión {$connection} (se esperaba db-dumps/{$name}).");
+            }
+
+            if (! is_readable($path) || filesize($path) === 0) {
+                throw new BackupException("el dump de la conexión {$connection} está vacío o no se puede leer (db-dumps/{$name}): no se toca la base.");
             }
 
             $dumps[$connection] = $path;
