@@ -5,6 +5,7 @@ namespace Mnonm\HermesDeployer;
 use Illuminate\Database\Migrations\Migrator;
 use Illuminate\Support\ServiceProvider;
 use Mnonm\HermesDeployer\Changelog\CommitReader;
+use Mnonm\HermesDeployer\Commands\BackupCommand;
 use Mnonm\HermesDeployer\Commands\BaselineCommand;
 use Mnonm\HermesDeployer\Commands\InstallCommand;
 use Mnonm\HermesDeployer\Commands\ReleaseCommand;
@@ -46,6 +47,7 @@ class HermesDeployerServiceProvider extends ServiceProvider
     {
         if ($this->app->runningInConsole()) {
             $this->commands([
+                BackupCommand::class,
                 BaselineCommand::class,
                 InstallCommand::class,
                 RunCommand::class,
