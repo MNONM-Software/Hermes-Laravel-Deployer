@@ -6,9 +6,10 @@ use Mnonm\HermesDeployer\Exceptions\BackupException;
 
 /**
  * Lo que `deploy:backup` y `deploy:restore` leen de la config de spatie y de
- * la app. Las dos formas de nombre de dump que spatie permite y este paquete
- * no sabe leer —comprimido, con timestamp— se rechazan acá, para que el
- * rechazo llegue en el backup, antes de tocar nada, y no en la reversión.
+ * la app. Las formas de dump que spatie permite y este paquete no sabe
+ * restaurar —comprimido, con timestamp, con otra extensión, parcial— se
+ * rechazan acá, para que el rechazo llegue en el backup, antes de tocar nada,
+ * y no en la reversión.
  */
 final class BackupConfig
 {
@@ -27,6 +28,18 @@ final class BackupConfig
 
         if (config('backup.backup.database_dump_file_timestamp_format') !== null) {
             throw new BackupException('backup.backup.database_dump_file_timestamp_format tiene que ser null: deploy:restore busca cada dump por su nombre exacto.');
+        }
+
+        if (! in_array(config('backup.backup.database_dump_file_extension'), [null, '', 'sql'], true)) {
+            throw new BackupException("backup.backup.database_dump_file_extension tiene que ser '' o 'sql': deploy:restore busca cada dump por su nombre exacto.");
+        }
+
+        foreach (self::connections() as $connection) {
+            foreach (['exclude_tables', 'include_tables', 'only_tables'] as $key) {
+                if (! empty(config("database.connections.{$connection}.dump.{$key}"))) {
+                    throw new BackupException("database.connections.{$connection}.dump.{$key} tiene que estar vacío: deploy:restore vacía la base entera, y un dump parcial perdería las tablas que deja afuera.");
+                }
+            }
         }
 
         self::localDisk();
