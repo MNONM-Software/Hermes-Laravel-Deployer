@@ -38,10 +38,16 @@
     },
     "minimum-stability": "stable",
     "prefer-stable": true,
+    "suggest": {
+        "spatie/laravel-backup": "Necesario para deploy:backup y deploy:restore (^10.0)"
+    },
     "require-dev": {
         "orchestra/testbench": "^11.2",
         "phpunit/phpunit": "^12.5",
         "laravel/pint": "^1.32",
-        "phpstan/phpstan": "^2.2"
+        "phpstan/phpstan": "^2.2",
+        "spatie/laravel-backup": "^10.0"
+    },
+    "config": {
     }
 }
