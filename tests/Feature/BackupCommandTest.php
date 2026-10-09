@@ -47,6 +47,15 @@ class BackupCommandTest extends BackupTestCase
         $this->assertDirectoryDoesNotExist($this->tmp.'/disk/hermes-test');
     }
 
+    public function test_it_refuses_a_partial_dump_before_backing_up_anything(): void
+    {
+        config()->set('database.connections.backup_test.dump.exclude_tables', ['clientes']);
+
+        $this->assertSame(1, Artisan::call('deploy:backup'));
+        $this->assertStringContainsString('dump parcial', Artisan::output());
+        $this->assertDirectoryDoesNotExist($this->tmp.'/disk/hermes-test');
+    }
+
     public function test_it_refuses_a_config_without_a_local_disk(): void
     {
         config()->set('filesystems.disks.remote', ['driver' => 's3']);

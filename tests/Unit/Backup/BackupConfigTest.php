@@ -5,6 +5,7 @@ namespace Mnonm\HermesDeployer\Tests\Unit\Backup;
 use Mnonm\HermesDeployer\Backup\BackupConfig;
 use Mnonm\HermesDeployer\Exceptions\BackupException;
 use Mnonm\HermesDeployer\Tests\BackupTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class BackupConfigTest extends BackupTestCase
 {
@@ -35,6 +36,58 @@ class BackupConfigTest extends BackupTestCase
         $this->expectExceptionMessage('backup.backup.database_dump_file_timestamp_format');
 
         BackupConfig::assertRestorable();
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function partialDumpKeys(): array
+    {
+        return [
+            'exclude_tables' => ['exclude_tables'],
+            'include_tables' => ['include_tables'],
+            'only_tables' => ['only_tables'],
+        ];
+    }
+
+    #[DataProvider('partialDumpKeys')]
+    public function test_a_partial_dump_is_not_restorable(string $key): void
+    {
+        config()->set("database.connections.backup_test.dump.{$key}", ['clientes']);
+
+        $this->expectException(BackupException::class);
+        $this->expectExceptionMessage("database.connections.backup_test.dump.{$key}");
+
+        BackupConfig::assertRestorable();
+    }
+
+    public function test_an_empty_table_filter_is_restorable(): void
+    {
+        config()->set('database.connections.backup_test.dump.exclude_tables', []);
+
+        BackupConfig::assertRestorable();
+
+        $this->addToAssertionCount(1);
+    }
+
+    public function test_another_dump_extension_is_not_restorable(): void
+    {
+        config()->set('backup.backup.database_dump_file_extension', 'dump');
+
+        $this->expectException(BackupException::class);
+        $this->expectExceptionMessage('backup.backup.database_dump_file_extension');
+
+        BackupConfig::assertRestorable();
+    }
+
+    public function test_the_sql_extension_is_restorable(): void
+    {
+        config()->set('backup.backup.database_dump_file_extension', 'sql');
+        BackupConfig::assertRestorable();
+        config()->set('backup.backup.database_dump_file_extension', null);
+        BackupConfig::assertRestorable();
+
+        $this->addToAssertionCount(1);
     }
 
     public function test_it_needs_a_local_disk(): void
