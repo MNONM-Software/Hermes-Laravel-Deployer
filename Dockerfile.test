@@ -1,6 +1,8 @@
 # Imagen para correr la suite de este paquete en una máquina cuyo PHP no tiene
 # pdo_sqlite (la base en memoria de Testbench lo necesita) o no tiene git
-# (CommitReaderTest construye repos de verdad).
+# (CommitReaderTest construye repos de verdad). También trae ext-zip (spatie
+# laravel-backup) y el binario sqlite3 (el dumper de SQLite de spatie y la carga
+# de deploy:restore).
 #
 #   docker build -f Dockerfile.test -t hermes-deployer-test .
 #   docker run --rm -u "$(id -u):$(id -g)" -v "$PWD":/app -w /app hermes-deployer-test vendor/bin/phpunit
@@ -10,5 +12,6 @@
 FROM php:8.3-fpm-bookworm
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends git \
+    && apt-get install -y --no-install-recommends git sqlite3 libzip-dev \
+    && docker-php-ext-install zip \
     && rm -rf /var/lib/apt/lists/*
