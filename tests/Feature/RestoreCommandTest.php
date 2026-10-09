@@ -4,9 +4,11 @@ namespace Mnonm\HermesDeployer\Tests\Feature;
 
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Schema;
 use Mnonm\HermesDeployer\Backup\BackupConfig;
 use Mnonm\HermesDeployer\Tests\BackupTestCase;
+use RuntimeException;
 use Spatie\Backup\Config\Config;
 use ZipArchive;
 
@@ -97,9 +99,45 @@ class RestoreCommandTest extends BackupTestCase
         $output = Artisan::output();
 
         $this->assertStringContainsString('backup_test', $output);
-        $this->assertStringContainsString('db:wipe ya corrió', $output);
+        $this->assertStringContainsString('pudo quedar vacía o a medio cargar', $output);
         $this->assertStringContainsString('Restauradas: ninguna', $output);
         $this->assertStringContainsString('sqlite3', $output);
+    }
+
+    public function test_it_refuses_a_client_that_cannot_connect_without_touching_the_database(): void
+    {
+        $zip = $this->backup();
+        Process::fake(fn () => Process::result('', 'Error: unable to open database', 1));
+
+        $this->assertSame(1, Artisan::call('deploy:restore', ['zip' => $zip]));
+        $output = Artisan::output();
+
+        $this->assertStringContainsString('no pude conectarme a la conexión backup_test con sqlite3', $output);
+        $this->assertStringContainsString('no se tocó la base', $output);
+        Process::assertRanTimes(fn (): bool => true, 1);
+        $this->assertDatabaseUntouched();
+    }
+
+    public function test_an_unexpected_error_after_the_wipe_is_reported_with_its_context(): void
+    {
+        $zip = $this->backup();
+        $calls = 0;
+        // La primera es el preflight, la segunda la carga: ésa revienta con
+        // algo que no es una BackupException.
+        Process::fake(function () use (&$calls) {
+            if (++$calls === 2) {
+                throw new RuntimeException('se cayó el cliente');
+            }
+
+            return Process::result();
+        });
+
+        $this->assertSame(1, Artisan::call('deploy:restore', ['zip' => $zip]));
+        $output = Artisan::output();
+
+        $this->assertStringContainsString('backup_test', $output);
+        $this->assertStringContainsString('pudo quedar vacía o a medio cargar', $output);
+        $this->assertStringContainsString('se cayó el cliente', $output);
     }
 
     public function test_it_refuses_an_empty_dump_without_touching_the_database(): void

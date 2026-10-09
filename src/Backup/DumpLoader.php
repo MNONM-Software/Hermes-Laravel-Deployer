@@ -2,6 +2,7 @@
 
 namespace Mnonm\HermesDeployer\Backup;
 
+use Illuminate\Contracts\Process\ProcessResult;
 use Illuminate\Support\Facades\Process;
 use Mnonm\HermesDeployer\Exceptions\BackupException;
 
@@ -14,20 +15,69 @@ final class DumpLoader
 {
     public function load(string $connection, string $dumpPath): void
     {
+        $input = fopen($dumpPath, 'rb');
+
+        if ($input === false) {
+            throw new BackupException("no se pudo leer el dump {$dumpPath}.");
+        }
+
+        try {
+            $result = $this->client($connection, $input);
+        } finally {
+            fclose($input);
+        }
+
+        if ($result->failed()) {
+            throw new BackupException(self::binary($connection)." salió con código {$result->exitCode()}: ".trim($result->errorOutput()));
+        }
+    }
+
+    /**
+     * Un `SELECT 1` con el mismo cliente y las mismas credenciales que
+     * `load()`. Corre antes del primer `db:wipe`: un cliente que no está
+     * instalado o una credencial que no sirve fallan acá, con la base intacta.
+     */
+    public function preflight(string $connection): void
+    {
+        $result = $this->client($connection, 'SELECT 1;');
+
+        if ($result->failed()) {
+            throw new BackupException(
+                "no pude conectarme a la conexión {$connection} con ".self::binary($connection)
+                .' antes de restaurar: '.trim($result->errorOutput()).'; no se tocó la base.'
+            );
+        }
+    }
+
+    private static function binary(string $connection): string
+    {
+        return match (BackupConfig::driver($connection)) {
+            'mysql', 'mariadb' => 'mysql',
+            'pgsql' => 'psql',
+            default => 'sqlite3',
+        };
+    }
+
+    /**
+     * @param  resource|string  $input
+     */
+    private function client(string $connection, mixed $input): ProcessResult
+    {
         /** @var array<string, mixed> $config */
         $config = (array) config("database.connections.{$connection}");
 
-        match (BackupConfig::driver($connection)) {
-            'mysql', 'mariadb' => $this->mysql($config, $dumpPath),
-            'pgsql' => $this->pgsql($config, $dumpPath),
-            default => $this->run(['sqlite3', '-bail', (string) $config['database']], $dumpPath, []),
+        return match (BackupConfig::driver($connection)) {
+            'mysql', 'mariadb' => $this->mysql($config, $input),
+            'pgsql' => $this->pgsql($config, $input),
+            default => $this->run(['sqlite3', '-bail', (string) $config['database']], $input, []),
         };
     }
 
     /**
      * @param  array<string, mixed>  $config
+     * @param  resource|string  $input
      */
-    private function mysql(array $config, string $dumpPath): void
+    private function mysql(array $config, mixed $input): ProcessResult
     {
         $defaults = tempnam(sys_get_temp_dir(), 'hermes-mysql-');
 
@@ -52,7 +102,7 @@ final class DumpLoader
 
             file_put_contents($defaults, implode("\n", $lines)."\n");
 
-            $this->run(['mysql', '--defaults-extra-file='.$defaults, (string) $config['database']], $dumpPath, []);
+            return $this->run(['mysql', '--defaults-extra-file='.$defaults, (string) $config['database']], $input, []);
         } finally {
             @unlink($defaults);
         }
@@ -60,16 +110,17 @@ final class DumpLoader
 
     /**
      * @param  array<string, mixed>  $config
+     * @param  resource|string  $input
      */
-    private function pgsql(array $config, string $dumpPath): void
+    private function pgsql(array $config, mixed $input): ProcessResult
     {
-        $this->run([
+        return $this->run([
             'psql', '-v', 'ON_ERROR_STOP=1', '--quiet', '--no-psqlrc',
             '-h', (string) ($config['host'] ?? '127.0.0.1'),
             '-p', (string) ($config['port'] ?? 5432),
             '-U', (string) ($config['username'] ?? ''),
             '-d', (string) $config['database'],
-        ], $dumpPath, ['PGPASSWORD' => (string) ($config['password'] ?? '')]);
+        ], $input, ['PGPASSWORD' => (string) ($config['password'] ?? '')]);
     }
 
     /**
@@ -83,25 +134,12 @@ final class DumpLoader
 
     /**
      * @param  list<string>  $argv
+     * @param  resource|string  $input
      * @param  array<string, string>  $env
      */
-    private function run(array $argv, string $dumpPath, array $env): void
+    private function run(array $argv, mixed $input, array $env): ProcessResult
     {
-        $input = fopen($dumpPath, 'rb');
-
-        if ($input === false) {
-            throw new BackupException("no se pudo leer el dump {$dumpPath}.");
-        }
-
-        try {
-            // Sin timeout propio: el límite lo pone quien despliega.
-            $result = Process::forever()->env($env)->input($input)->run($argv);
-        } finally {
-            fclose($input);
-        }
-
-        if ($result->failed()) {
-            throw new BackupException("{$argv[0]} salió con código {$result->exitCode()}: ".trim($result->errorOutput()));
-        }
+        // Sin timeout propio: el límite lo pone quien despliega.
+        return Process::forever()->env($env)->input($input)->run($argv);
     }
 }
