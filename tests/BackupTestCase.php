@@ -63,6 +63,10 @@ abstract class BackupTestCase extends TestCase
         $config->set('backup.backup.destination.disks', ['backups']);
         $config->set('backup.backup.temporary_directory', $this->tmp.'/spatie-temp');
         $config->set('backup.backup.password', null);
-        $config->set('backup.notifications.notifications', []);
+        // Sin canales, pero con cada clave: spatie indexa la notificación que dispara.
+        $config->set('backup.notifications.notifications', array_map(
+            static fn (): array => [],
+            $config->get('backup.notifications.notifications'),
+        ));
     }
 }
