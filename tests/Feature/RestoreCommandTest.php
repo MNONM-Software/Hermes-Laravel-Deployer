@@ -5,6 +5,7 @@ namespace Mnonm\HermesDeployer\Tests\Feature;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Mnonm\HermesDeployer\Backup\BackupConfig;
 use Mnonm\HermesDeployer\Tests\BackupTestCase;
 use Spatie\Backup\Config\Config;
 use ZipArchive;
@@ -86,6 +87,36 @@ class RestoreCommandTest extends BackupTestCase
         $this->assertSame(1, Artisan::call('deploy:restore', ['zip' => $this->tmp.'/sin-dump.zip']));
         $this->assertStringContainsString('backup_test', Artisan::output());
         $this->assertDatabaseUntouched();
+    }
+
+    public function test_it_says_the_connection_was_left_empty_when_the_load_fails_after_the_wipe(): void
+    {
+        $this->zipWithDump('mal.zip', 'esto no es sql valido;');
+
+        $this->assertSame(1, Artisan::call('deploy:restore', ['zip' => $this->tmp.'/mal.zip']));
+        $output = Artisan::output();
+
+        $this->assertStringContainsString('backup_test', $output);
+        $this->assertStringContainsString('db:wipe ya corrió', $output);
+        $this->assertStringContainsString('Restauradas: ninguna', $output);
+        $this->assertStringContainsString('sqlite3', $output);
+    }
+
+    public function test_it_refuses_an_empty_dump_without_touching_the_database(): void
+    {
+        $this->zipWithDump('vacio.zip', '');
+
+        $this->assertSame(1, Artisan::call('deploy:restore', ['zip' => $this->tmp.'/vacio.zip']));
+        $this->assertStringContainsString('vacío', Artisan::output());
+        $this->assertDatabaseUntouched();
+    }
+
+    private function zipWithDump(string $name, string $contents): void
+    {
+        $zip = new ZipArchive;
+        $zip->open($this->tmp.'/'.$name, ZipArchive::CREATE);
+        $zip->addFromString('db-dumps/'.BackupConfig::dumpFileName('backup_test'), $contents);
+        $zip->close();
     }
 
     private function backup(): string
