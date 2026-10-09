@@ -36,6 +36,10 @@ ejemplo `/ceo`) la registra en `/ceo/health`, no en `/health`.
 | `deploy:status` | Qué corrió y qué falta acá, sin ejecutar nada |
 | `deploy:baseline` | Marca todo como corrido sin ejecutarlo. Pregunta antes; `--force` para uso no interactivo. Una vez por instalación, al adoptar el sistema en un proyecto que ya venía andando. Para una instalación nueva no hace falta: eso es `deploy:run --baseline`, que además aplica las migraciones |
 | `deploy:release` | Redacta la entrada del `CHANGELOG.md` y sube el número. No commitea nada |
+| `deploy:backup` | Corre `backup:run` de spatie y devuelve, como última línea, `{"zip":"<ruta>"}`: el zip que acaba de generar en el primer disco local. Rechaza antes de respaldar una config que `deploy:restore` no sabe leer (dump comprimido o con timestamp, ningún disco local) |
+| `deploy:restore <zip>` | Verifica que el zip abre, que se descifra con `backup.backup.password` y que tiene el dump de cada conexión de `backup.backup.source.databases`; recién entonces corre `db:wipe` en cada una y carga su dump con `mysql`, `psql` o `sqlite3`. La contraseña de la base no va en el argv |
+
+`deploy:backup` y `deploy:restore` necesitan `spatie/laravel-backup` (^10), que este paquete sugiere pero no instala.
 
 ## Una operación
 

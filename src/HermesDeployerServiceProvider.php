@@ -9,6 +9,7 @@ use Mnonm\HermesDeployer\Commands\BackupCommand;
 use Mnonm\HermesDeployer\Commands\BaselineCommand;
 use Mnonm\HermesDeployer\Commands\InstallCommand;
 use Mnonm\HermesDeployer\Commands\ReleaseCommand;
+use Mnonm\HermesDeployer\Commands\RestoreCommand;
 use Mnonm\HermesDeployer\Commands\RunCommand;
 use Mnonm\HermesDeployer\Commands\StatusCommand;
 
@@ -53,6 +54,7 @@ class HermesDeployerServiceProvider extends ServiceProvider
                 RunCommand::class,
                 StatusCommand::class,
                 ReleaseCommand::class,
+                RestoreCommand::class,
             ]);
 
             $this->publishes([
