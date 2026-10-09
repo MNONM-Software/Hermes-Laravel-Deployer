@@ -7,6 +7,7 @@ use Illuminate\Filesystem\Filesystem;
 use Mnonm\HermesDeployer\Backup\BackupConfig;
 use Mnonm\HermesDeployer\Backup\DumpLoader;
 use Mnonm\HermesDeployer\Exceptions\BackupException;
+use Throwable;
 use ZipArchive;
 
 class RestoreCommand extends Command
@@ -28,8 +29,13 @@ class RestoreCommand extends Command
             $dir = $this->extract($zipPath);
             $dumps = $this->dumps($dir);
 
+            foreach (array_keys($dumps) as $connection) {
+                $loader->preflight($connection);
+            }
+
             // Desde acá se toca la base. Todo lo anterior se verificó sin
-            // tocarla: un zip que no sirve deja la base como la dejó la falla.
+            // tocarla: un zip que no sirve, o un cliente que no conecta, deja la
+            // base como la dejó la falla.
             $restored = [];
 
             foreach ($dumps as $connection => $dump) {
@@ -45,11 +51,14 @@ class RestoreCommand extends Command
                     }
 
                     $loader->load($connection, $dump);
-                } catch (BackupException $e) {
+                } catch (Throwable $e) {
+                    // Cualquier cosa, no sólo una BackupException: una
+                    // QueryException o un TypeError a mitad de la carga dejan
+                    // la base igual de rota, y quien lee tiene que saber cuál.
                     $untouched = array_values(array_diff(array_keys($dumps), $restored, [$connection]));
 
                     throw new BackupException(
-                        "la restauración se cortó en la conexión {$connection}, que quedó vacía o a medio cargar porque db:wipe ya corrió: {$e->getMessage()} "
+                        "la restauración se cortó en la conexión {$connection}, que pudo quedar vacía o a medio cargar: {$e->getMessage()} "
                         .'Restauradas: '.($restored === [] ? 'ninguna' : implode(', ', $restored)).'. '
                         .'Sin tocar: '.($untouched === [] ? 'ninguna' : implode(', ', $untouched)).'.'
                     );

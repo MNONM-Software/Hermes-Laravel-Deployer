@@ -47,7 +47,5 @@
         "laravel/pint": "^1.32",
         "phpstan/phpstan": "^2.2",
         "spatie/laravel-backup": "^10.0"
-    },
-    "config": {
     }
 }
